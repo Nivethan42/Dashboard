@@ -1,0 +1,114 @@
+{
+  "generated_at_utc": "1970-01-01T00:00:00Z",
+  "generated_at_display": "(waiting for first pipeline run)",
+  "sources": {
+    "QQQ": {
+      "asof_open_date": null,
+      "last_open": null,
+      "SSLP7_3": null,
+      "ESLP100_3": null,
+      "MOM100": null,
+      "MOM150": null,
+      "MOM180": null,
+      "ROC5": null,
+      "SR50_150": null,
+      "SR63_126": null,
+      "SR150_200": null,
+      "RV5": null,
+      "RV7": null
+    },
+    "SPY": {
+      "asof_open_date": null,
+      "last_open": null,
+      "MOM90": null,
+      "MOM100": null,
+      "ABVMA100": null,
+      "ABVMA100_true": false,
+      "SLP5_1": null,
+      "SLP20_1": null,
+      "SLP20_3": null,
+      "VR20_100": null
+    }
+  },
+  "strategies": [
+    {
+      "id": "tqqq_tfsa",
+      "name": "TQQQ · TFSA — Multi-trigger + Quad trend",
+      "etf": "TQQQ",
+      "account": "TFSA",
+      "source": "QQQ",
+      "buy_signal": false,
+      "trigger_passed": false,
+      "filters_passed": false,
+      "notes": "Waiting for first data pull.",
+      "conditions": [
+        { "label": "SSLP7_3 < -0.02",   "formula": "SMA7 / SMA7[t-3] − 1",     "value": null, "passed": false, "group": "trigger" },
+        { "label": "ESLP100_3 < -0.006","formula": "EMA100 / EMA100[t-3] − 1", "value": null, "passed": false, "group": "trigger" },
+        { "label": "MOM100 > -0.0225",  "formula": "Open[t-1] / Open[t-101] − 1", "value": null, "passed": false, "group": "trigger" },
+        { "label": "SR150_200 < 1.07",  "formula": "SMA150 / SMA200",          "value": null, "passed": false, "group": "filter"  },
+        { "label": "SR63_126 < 1.06",   "formula": "SMA63 / SMA126",           "value": null, "passed": false, "group": "filter"  },
+        { "label": "MOM180 > -0.12",    "formula": "Open[t-1] / Open[t-181] − 1", "value": null, "passed": false, "group": "filter"  },
+        { "label": "SR50_150 < 1.08",   "formula": "SMA50 / SMA150",           "value": null, "passed": false, "group": "filter"  }
+      ]
+    },
+    {
+      "id": "tqqq_rrsp",
+      "name": "TQQQ · RRSP — Reset / momentum + volatility",
+      "etf": "TQQQ",
+      "account": "RRSP",
+      "source": "QQQ",
+      "buy_signal": false,
+      "trigger_passed": false,
+      "filters_passed": false,
+      "notes": "Trend pair is an OR: at least one of SR50_150 / ROC5 must pass.",
+      "conditions": [
+        { "label": "SSLP7_3 < -0.02025","formula": "SMA7 / SMA7[t-3] − 1",     "value": null, "passed": false, "group": "trigger" },
+        { "label": "MOM150 > -0.01825","formula": "Open[t-1] / Open[t-151] − 1","value": null, "passed": false, "group": "trigger" },
+        { "label": "RV5 < 0.0310",     "formula": "stdev open-open returns (5d)", "value": null, "passed": false, "group": "filter"  },
+        { "label": "RV7 < 0.0350",     "formula": "stdev open-open returns (7d)", "value": null, "passed": false, "group": "filter"  },
+        { "label": "SR50_150 < 1.081", "formula": "SMA50 / SMA150",           "value": null, "passed": false, "group": "filter"  },
+        { "label": "ROC5 < 0.007",     "formula": "Open[t-1] / Open[t-6] − 1","value": null, "passed": false, "group": "filter"  }
+      ]
+    },
+    {
+      "id": "spxl_tfsa",
+      "name": "SPXL · TFSA — Score ≥ 3 + volatility ratio",
+      "etf": "SPXL",
+      "account": "TFSA",
+      "source": "SPY",
+      "buy_signal": false,
+      "trigger_passed": false,
+      "filters_passed": false,
+      "notes": "Buy when score ≥ 3 (of 6) AND VR20/100 < 1.4. Sell when score ≤ 1 OR VR20/100 ≥ 1.4.",
+      "conditions": [
+        { "label": "MOM90 > 0",  "formula": "SPY Open[t-1] / Open[t-91] − 1",  "value": null, "passed": false, "group": "trigger" },
+        { "label": "MOM100 > 0", "formula": "SPY Open[t-1] / Open[t-101] − 1", "value": null, "passed": false, "group": "trigger" },
+        { "label": "ABVMA100",   "formula": "SPY Open[t-1] > SMA100",          "value": null, "passed": false, "group": "trigger" },
+        { "label": "SLP5_1 > 0", "formula": "(SMA5[t-1] / SMA5[t-2]) − 1",     "value": null, "passed": false, "group": "trigger" },
+        { "label": "SLP20_1 > 0","formula": "(SMA20[t-1] / SMA20[t-2]) − 1",   "value": null, "passed": false, "group": "trigger" },
+        { "label": "SLP20_3 > 0","formula": "(SMA20[t-1] / SMA20[t-4]) − 1",   "value": null, "passed": false, "group": "trigger" },
+        { "label": "VR20/100 < 1.4", "formula": "20d vol / 100d vol",          "value": null, "passed": false, "group": "filter" }
+      ]
+    },
+    {
+      "id": "spxl_rrsp",
+      "name": "SPXL · RRSP — Placeholder (matches TFSA)",
+      "etf": "SPXL",
+      "account": "RRSP",
+      "source": "SPY",
+      "buy_signal": false,
+      "trigger_passed": false,
+      "filters_passed": false,
+      "notes": "RRSP rule not yet supplied — using SPXL-TFSA rule as placeholder.",
+      "conditions": [
+        { "label": "MOM90 > 0",  "formula": "SPY Open[t-1] / Open[t-91] − 1",  "value": null, "passed": false, "group": "trigger" },
+        { "label": "MOM100 > 0", "formula": "SPY Open[t-1] / Open[t-101] − 1", "value": null, "passed": false, "group": "trigger" },
+        { "label": "ABVMA100",   "formula": "SPY Open[t-1] > SMA100",          "value": null, "passed": false, "group": "trigger" },
+        { "label": "SLP5_1 > 0", "formula": "(SMA5[t-1] / SMA5[t-2]) − 1",     "value": null, "passed": false, "group": "trigger" },
+        { "label": "SLP20_1 > 0","formula": "(SMA20[t-1] / SMA20[t-2]) − 1",   "value": null, "passed": false, "group": "trigger" },
+        { "label": "SLP20_3 > 0","formula": "(SMA20[t-1] / SMA20[t-4]) − 1",   "value": null, "passed": false, "group": "trigger" },
+        { "label": "VR20/100 < 1.4", "formula": "20d vol / 100d vol",          "value": null, "passed": false, "group": "filter" }
+      ]
+    }
+  ]
+}

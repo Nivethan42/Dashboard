@@ -1,0 +1,53 @@
+name: Update dashboard data
+
+on:
+  # NOTE: GitHub cron is UTC and ignores DST. We schedule both EDT and EST
+  # windows; the script is idempotent so running in the "wrong" one is fine.
+  schedule:
+    # EDT (UTC-4): 9:30 / 9:35 / 9:40 / 9:45 ET  ->  13:30 / 13:35 / 13:40 / 13:45 UTC
+    - cron: "30 13 * * 1-5"
+    - cron: "35 13 * * 1-5"
+    - cron: "40 13 * * 1-5"
+    - cron: "45 13 * * 1-5"
+    # EST (UTC-5): 9:30 / 9:35 / 9:40 / 9:45 ET  ->  14:30 / 14:35 / 14:40 / 14:45 UTC
+    - cron: "30 14 * * 1-5"
+    - cron: "35 14 * * 1-5"
+    - cron: "40 14 * * 1-5"
+    - cron: "45 14 * * 1-5"
+  workflow_dispatch: {}  # allows manual refresh from the GitHub UI
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compute signals
+        run: python scripts/compute_signals.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/latest.json data/history.json
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "chore: refresh dashboard data [skip ci]"
+            git push
+          fi

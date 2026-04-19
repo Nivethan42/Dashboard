@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Leveraged ETF Strategy Dashboard</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='50' font-size='52'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>Strategy Dashboard</h1>
+          <p class="subtitle">QQQ &amp; SPY signal sources · prior-data only · execute at today's open</p>
+        </div>
+      </div>
+      <div class="header-controls">
+        <div class="meta" id="meta">
+          <span class="meta-line" id="meta-generated">Loading…</span>
+          <span class="meta-line muted" id="meta-source">—</span>
+        </div>
+        <button id="refresh-btn" class="btn primary" type="button" title="Reload latest data file">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="btn-label">Refresh</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap main">
+    <section id="overview" class="overview">
+      <!-- filled by JS -->
+    </section>
+
+    <section id="strategies" class="strategies">
+      <!-- filled by JS -->
+    </section>
+
+    <section class="sources">
+      <h2>Underlying indicator snapshot</h2>
+      <div class="sources-grid" id="sources-grid"><!-- filled by JS --></div>
+    </section>
+
+    <section class="help">
+      <h2>How this works</h2>
+      <div class="help-grid">
+        <div class="help-card">
+          <h3>Data pipeline</h3>
+          <p>A GitHub Action pulls QQQ and SPY daily opens from Yahoo Finance at 9:30, 9:35, 9:40, and 9:45 ET every market day, computes the indicators, and commits <code>data/latest.json</code>.</p>
+        </div>
+        <div class="help-card">
+          <h3>Manual refresh</h3>
+          <p>Press <strong>Refresh</strong> to reload the latest committed data. To force a fresh Yahoo pull, run the <em>Update dashboard data</em> workflow from the Actions tab in GitHub (<code>Run workflow</code>).</p>
+        </div>
+        <div class="help-card">
+          <h3>Reading the cards</h3>
+          <p>Each card shows whether today's open should trigger a buy. Green rows satisfy the rule; red rows don't. A card is <strong>BUY</strong> only when every required condition passes.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Signal source: Yahoo Finance via <code>yfinance</code>. Not investment advice — use your own judgement.</p>
+    </div>
+  </footer>
+
+  <template id="strategy-card-template">
+    <article class="card strategy-card">
+      <header class="card-head">
+        <div class="tags">
+          <span class="tag tag-etf"></span>
+          <span class="tag tag-account"></span>
+          <span class="tag tag-source"></span>
+        </div>
+        <h3 class="card-title"></h3>
+        <p class="card-sub"></p>
+      </header>
+      <div class="signal-badge">
+        <span class="signal-label"></span>
+        <span class="signal-hint"></span>
+      </div>
+      <div class="conditions">
+        <div class="condition-group" data-group="trigger">
+          <h4>Entry triggers</h4>
+          <ul class="condition-list"></ul>
+        </div>
+        <div class="condition-group" data-group="filter">
+          <h4>Filters / risk gates</h4>
+          <ul class="condition-list"></ul>
+        </div>
+      </div>
+      <p class="card-notes"></p>
+    </article>
+  </template>
+
+  <script src="assets/js/main.js" defer></script>
+</body>
+</html>
