@@ -17,9 +17,10 @@ import json
 import math
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote as urlquote
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -35,7 +36,9 @@ LOOKBACK_DAYS = 900
 BACKFILL_DAYS = 400            # show trades from the last ~1 year (+ buffer)
 TICKERS = ["QQQ", "SPY", "TQQQ", "SPXL"]
 
-# Mimics a browser request so Yahoo doesn't 403 us.
+ET = ZoneInfo("America/New_York")
+
+# Browser-like headers — same idea as UrlFetchApp.fetch in Apps Script.
 YAHOO_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -44,62 +47,192 @@ YAHOO_HEADERS = {
     ),
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
     "Referer": "https://finance.yahoo.com/",
+    "Origin": "https://finance.yahoo.com",
 }
 
 
-# ─── Data download ────────────────────────────────────────────────────────────
+# ─── Yahoo session (cookies + crumb, created once per run) ───────────────────
 
-def _parse_yahoo_chart(jo: dict, ticker: str) -> pd.Series:
-    """Parse a v8/finance/chart JSON response into a dated opens Series."""
+class _YahooSession:
+    """Holds a requests.Session with Yahoo Finance cookies and a crumb token.
+
+    Mirrors the implicit cookie behaviour of UrlFetchApp.fetch in the Apps Script:
+    the browser/Google's HTTP client retains session cookies across calls; here
+    we do the same with a persistent requests.Session.
+    """
+
+    def __init__(self) -> None:
+        self.sess = requests.Session()
+        self.crumb: str | None = None
+        self._init()
+
+    def _init(self) -> None:
+        # Step 1 — hit the consent gate to plant the A1/B1 cookies (same origin
+        # as a first visit to finance.yahoo.com would set them).
+        try:
+            self.sess.get(
+                "https://fc.yahoo.com", headers=YAHOO_HEADERS,
+                timeout=10, allow_redirects=True,
+            )
+        except Exception as e:
+            print(f"  [yahoo] fc.yahoo.com warning: {e}", file=sys.stderr)
+
+        # Step 2 — fetch the crumb that Yahoo requires on chart/v8 requests.
+        for host in ("query1", "query2"):
+            try:
+                r = self.sess.get(
+                    f"https://{host}.finance.yahoo.com/v1/test/getcrumb",
+                    headers=YAHOO_HEADERS, timeout=10,
+                )
+                if r.status_code == 200 and r.text.strip():
+                    self.crumb = r.text.strip()
+                    print(f"  [yahoo] crumb OK via {host}", file=sys.stderr)
+                    return
+            except Exception as e:
+                print(f"  [yahoo] crumb/{host} error: {e}", file=sys.stderr)
+        print("  [yahoo] proceeding without crumb", file=sys.stderr)
+
+    def get(self, url: str, **kwargs) -> requests.Response:
+        if self.crumb:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}crumb={urlquote(self.crumb)}"
+        return self.sess.get(url, headers=YAHOO_HEADERS, **kwargs)
+
+
+_SESSION: _YahooSession | None = None
+
+
+def _session() -> _YahooSession:
+    global _SESSION
+    if _SESSION is None:
+        _SESSION = _YahooSession()
+    return _SESSION
+
+
+# ─── JSON parsing ─────────────────────────────────────────────────────────────
+
+def _parse_chart(jo: dict, ticker: str, date_col: str = "open") -> dict[str, float]:
+    """Return {date_str: open_price} from a v8/finance/chart JSON payload."""
     result = (jo.get("chart") or {}).get("result") or []
     if not result:
         raise ValueError(f"{ticker}: empty chart result")
     r = result[0]
     timestamps = r.get("timestamp") or []
     quote = ((r.get("indicators") or {}).get("quote") or [{}])[0]
-    raw_opens = quote.get("open") or []
+    raw = quote.get(date_col) or []
 
     records: dict[str, float] = {}
-    for ts, o in zip(timestamps, raw_opens):
-        if o is None or (isinstance(o, float) and (math.isnan(o) or math.isinf(o))):
+    for ts, v in zip(timestamps, raw):
+        if v is None or not math.isfinite(v) or v <= 0:
             continue
-        date_str = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
-        records[date_str] = float(o)
+        records[datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")] = float(v)
+    return records
 
-    if not records:
-        raise ValueError(f"{ticker}: no valid open prices parsed")
 
-    series = pd.Series(records)
-    series.index = pd.to_datetime(series.index)
-    series = series.sort_index()
-    series.name = ticker
-    return series
+def _chart_url(ticker: str, range_: str, interval: str, host: str = "query1") -> str:
+    return (
+        f"https://{host}.finance.yahoo.com/v8/finance/chart/"
+        f"{urlquote(ticker)}?range={range_}&interval={interval}"
+    )
 
+
+# ─── Daily opens download (mirrors fetchYahooDaily_) ─────────────────────────
 
 def download_opens(ticker: str) -> pd.Series:
-    """Fetch daily opens from Yahoo Finance v8 chart API (same endpoint as Apps Script)."""
-    url = (
-        "https://query1.finance.yahoo.com/v8/finance/chart/"
-        f"{urlquote(ticker)}?range={LOOKBACK_DAYS}d&interval=1d"
-    )
-    # Fallback URL uses query2 host — Yahoo load-balances between the two.
-    fallback_url = url.replace("query1.finance.yahoo.com", "query2.finance.yahoo.com")
-
+    sess = _session()
     last_err: Exception | None = None
-    for attempt in range(4):
-        target = url if attempt < 2 else fallback_url
+
+    for attempt, host in enumerate(("query1", "query2", "query1", "query2")):
+        url = _chart_url(ticker, f"{LOOKBACK_DAYS}d", "1d", host)
         try:
-            resp = requests.get(target, headers=YAHOO_HEADERS, timeout=20)
+            resp = sess.get(url, timeout=20)
             if resp.status_code != 200:
                 raise ValueError(f"HTTP {resp.status_code}")
-            return _parse_yahoo_chart(resp.json(), ticker)
-        except Exception as e:  # noqa: BLE001
+            records = _parse_chart(resp.json(), ticker)
+            if not records:
+                raise ValueError("no valid opens")
+            series = pd.Series(records)
+            series.index = pd.to_datetime(series.index)
+            series = series.sort_index()
+            series.name = ticker
+            print(f"  [{ticker}] daily OK — {len(series)} bars via {host}", file=sys.stderr)
+            return series
+        except Exception as e:
             last_err = e
-            print(f"  [{ticker}] attempt {attempt + 1} failed: {e}", file=sys.stderr)
+            print(f"  [{ticker}] attempt {attempt + 1} ({host}) failed: {e}", file=sys.stderr)
         time.sleep(2 ** attempt)   # 1s, 2s, 4s, 8s
 
-    raise RuntimeError(f"Failed to download {ticker} after 4 attempts: {last_err}")
+    raise RuntimeError(f"Failed to download {ticker}: {last_err}")
+
+
+# ─── Intraday 1m (mirrors fetchYahooIntraday1m_ + getTodayOpenFromYahooIntraday_)
+
+def _fetch_intraday_first_opens(ticker: str) -> dict[str, float]:
+    """Return {date_str: first_open_at_or_after_09:30_ET} for the past 7d.
+
+    Mirrors getTodayOpenFromYahooIntraday_ from the Apps Script.
+    """
+    sess = _session()
+    try:
+        resp = sess.get(_chart_url(ticker, "7d", "1m"), timeout=20)
+        if resp.status_code != 200:
+            return {}
+        result = (resp.json().get("chart") or {}).get("result") or []
+        if not result:
+            return {}
+        r = result[0]
+        timestamps = r.get("timestamp") or []
+        quote = ((r.get("indicators") or {}).get("quote") or [{}])[0]
+        raw_opens = quote.get("open") or []
+
+        first_open: dict[str, float] = {}
+        for ts, o in zip(timestamps, raw_opens):
+            if o is None or not math.isfinite(o) or o <= 0:
+                continue
+            dt_et = datetime.fromtimestamp(ts, tz=ET)
+            date_str = dt_et.strftime("%Y-%m-%d")
+            hhmm = dt_et.strftime("%H:%M")
+            if hhmm < "09:30":
+                continue
+            if date_str not in first_open:          # keep the 09:30 bar, not later ones
+                first_open[date_str] = float(o)
+        return first_open
+    except Exception as e:
+        print(f"  [{ticker}] intraday error: {e}", file=sys.stderr)
+        return {}
+
+
+def patch_today_open(opens: pd.Series, ticker: str) -> pd.Series:
+    """Upsert today's 09:30 ET open into the series using intraday 1m data.
+
+    Mirrors upsertTodayOpen_ + repairRecentDailyOpensFromIntraday_ in the
+    Apps Script. If Yahoo's daily bar already has today's open, this is a no-op.
+    """
+    now_et = datetime.now(ET)
+    today_str = now_et.strftime("%Y-%m-%d")
+
+    # Only attempt after 09:30 ET on a weekday.
+    if now_et.weekday() >= 5 or now_et.strftime("%H:%M") < "09:30":
+        return opens
+
+    intra = _fetch_intraday_first_opens(ticker)
+    today_open = intra.get(today_str)
+    if today_open is None:
+        return opens
+
+    today_idx = pd.Timestamp(today_str)
+    if today_idx in opens.index:
+        # Repair if daily bar has a bad/missing open (same as repairRecentDailyOpensFromIntraday_)
+        opens = opens.copy()
+        opens.loc[today_idx] = today_open
+    else:
+        new_row = pd.Series({today_idx: today_open}, name=opens.name)
+        opens = pd.concat([opens, new_row]).sort_index()
+
+    print(f"  [{ticker}] today open patched: {today_open}", file=sys.stderr)
+    return opens
 
 
 # ─── Indicator series ─────────────────────────────────────────────────────────
@@ -389,11 +522,14 @@ def indicator_snapshot(df: pd.DataFrame) -> dict:
 def main() -> int:
     now = datetime.now(timezone.utc)
 
-    # Download everything up front.
+    # Download everything up front, then patch today's open from intraday 1m
+    # (mirrors upsertTodayOpen_ + repairRecentDailyOpensFromIntraday_ in Apps Script).
     prices: dict[str, pd.Series] = {}
     for tkr in TICKERS:
         try:
-            prices[tkr] = download_opens(tkr)
+            series = download_opens(tkr)
+            series = patch_today_open(series, tkr)
+            prices[tkr] = series
         except Exception as e:  # noqa: BLE001
             print(f"[error] {tkr}: {e}", file=sys.stderr)
             return 1
