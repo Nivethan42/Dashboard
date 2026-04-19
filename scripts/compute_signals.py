@@ -17,11 +17,12 @@ import json
 import math
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote as urlquote
 
 import pandas as pd
-import yfinance as yf
+import requests
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,33 +35,71 @@ LOOKBACK_DAYS = 900
 BACKFILL_DAYS = 400            # show trades from the last ~1 year (+ buffer)
 TICKERS = ["QQQ", "SPY", "TQQQ", "SPXL"]
 
+# Mimics a browser request so Yahoo doesn't 403 us.
+YAHOO_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+}
+
 
 # ─── Data download ────────────────────────────────────────────────────────────
 
+def _parse_yahoo_chart(jo: dict, ticker: str) -> pd.Series:
+    """Parse a v8/finance/chart JSON response into a dated opens Series."""
+    result = (jo.get("chart") or {}).get("result") or []
+    if not result:
+        raise ValueError(f"{ticker}: empty chart result")
+    r = result[0]
+    timestamps = r.get("timestamp") or []
+    quote = ((r.get("indicators") or {}).get("quote") or [{}])[0]
+    raw_opens = quote.get("open") or []
+
+    records: dict[str, float] = {}
+    for ts, o in zip(timestamps, raw_opens):
+        if o is None or (isinstance(o, float) and (math.isnan(o) or math.isinf(o))):
+            continue
+        date_str = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+        records[date_str] = float(o)
+
+    if not records:
+        raise ValueError(f"{ticker}: no valid open prices parsed")
+
+    series = pd.Series(records)
+    series.index = pd.to_datetime(series.index)
+    series = series.sort_index()
+    series.name = ticker
+    return series
+
+
 def download_opens(ticker: str) -> pd.Series:
+    """Fetch daily opens from Yahoo Finance v8 chart API (same endpoint as Apps Script)."""
+    url = (
+        "https://query1.finance.yahoo.com/v8/finance/chart/"
+        f"{urlquote(ticker)}?range={LOOKBACK_DAYS}d&interval=1d"
+    )
+    # Fallback URL uses query2 host — Yahoo load-balances between the two.
+    fallback_url = url.replace("query1.finance.yahoo.com", "query2.finance.yahoo.com")
+
     last_err: Exception | None = None
     for attempt in range(4):
+        target = url if attempt < 2 else fallback_url
         try:
-            df = yf.download(
-                ticker,
-                period=f"{LOOKBACK_DAYS}d",
-                interval="1d",
-                auto_adjust=False,
-                progress=False,
-                threads=False,
-            )
-            if df is not None and not df.empty:
-                opens = df["Open"]
-                if isinstance(opens, pd.DataFrame):
-                    opens = opens.iloc[:, 0]
-                opens = opens.dropna().astype(float)
-                opens.name = ticker
-                opens.index = pd.to_datetime(opens.index).tz_localize(None).normalize()
-                return opens
+            resp = requests.get(target, headers=YAHOO_HEADERS, timeout=20)
+            if resp.status_code != 200:
+                raise ValueError(f"HTTP {resp.status_code}")
+            return _parse_yahoo_chart(resp.json(), ticker)
         except Exception as e:  # noqa: BLE001
             last_err = e
-        time.sleep(2 * (attempt + 1))
-    raise RuntimeError(f"Failed to download {ticker}: {last_err}")
+            print(f"  [{ticker}] attempt {attempt + 1} failed: {e}", file=sys.stderr)
+        time.sleep(2 ** attempt)   # 1s, 2s, 4s, 8s
+
+    raise RuntimeError(f"Failed to download {ticker} after 4 attempts: {last_err}")
 
 
 # ─── Indicator series ─────────────────────────────────────────────────────────
