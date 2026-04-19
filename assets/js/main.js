@@ -261,6 +261,108 @@ function renderSources(sources) {
   }).join("");
 }
 
+// ─── Trade history ────────────────────────────────────────────────────────────
+
+let _historyState = { data: null, current: null };
+
+function fmtPct(v) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  const sign = v >= 0 ? "+" : "";
+  return `${sign}${(v * 100).toFixed(2)}%`;
+}
+function fmtPrice(v) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  return `$${v.toFixed(2)}`;
+}
+
+function renderHistoryStats(strategy) {
+  const root = document.getElementById("history-stats");
+  const summary = strategy.trades_summary || {};
+  const wr = summary.win_rate;
+  const cr = summary.compounded_return_pct;
+  const best = summary.best_trade_pct;
+  const worst = summary.worst_trade_pct;
+
+  root.innerHTML = `
+    <div class="history-stat"><span class="k">Closed trades</span><span class="v">${summary.trades_closed ?? 0}</span></div>
+    <div class="history-stat"><span class="k">Win rate</span><span class="v">${wr != null ? `${(wr * 100).toFixed(0)}%` : "—"}</span></div>
+    <div class="history-stat"><span class="k">Compounded</span><span class="v ${cr != null && cr >= 0 ? "good" : cr != null ? "bad" : ""}">${fmtPct(cr)}</span></div>
+    <div class="history-stat"><span class="k">Best</span><span class="v good">${fmtPct(best)}</span></div>
+    <div class="history-stat"><span class="k">Worst</span><span class="v bad">${fmtPct(worst)}</span></div>
+  `;
+}
+
+function renderHistoryTable(strategy) {
+  const tbody = document.getElementById("history-tbody");
+  const trades = (strategy.trades || []).slice().reverse(); // most recent first
+
+  if (trades.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="history-empty">No completed trades in the past year for this strategy.</td></tr>`;
+    return;
+  }
+
+  const total = trades.length;
+  tbody.innerHTML = trades.map((t, i) => {
+    const num = total - i;
+    const ret = t.return_pct;
+    const retCls = t.open ? "dim" : (ret != null && ret >= 0 ? "good" : "bad");
+    const retTxt = t.open ? "open" : fmtPct(ret);
+    const rowCls = t.open ? "open-row" : "";
+    return `
+      <tr class="${rowCls}">
+        <td class="dim">${num}</td>
+        <td>${t.entry_date ?? "—"}</td>
+        <td class="num">${fmtPrice(t.entry_price)}</td>
+        <td>${t.exit_date ?? (t.open ? "—" : "—")}</td>
+        <td class="num">${fmtPrice(t.exit_price)}</td>
+        <td class="num dim">${t.bars ?? "—"}</td>
+        <td class="num ${retCls}">${retTxt}</td>
+      </tr>`;
+  }).join("");
+}
+
+function renderHistorySub(strategy, backfillDays) {
+  document.getElementById("history-sub").textContent =
+    `${strategy.etf} · ${strategy.account} · showing last ~${backfillDays ?? 365} days of signals`;
+}
+
+function renderHistory(data) {
+  const select = document.getElementById("history-select");
+  _historyState.data = data;
+
+  // Populate dropdown (only once unless strategy list changes)
+  const ids = data.strategies.map((s) => s.id).join("|");
+  if (select.dataset.ids !== ids) {
+    select.innerHTML = data.strategies.map((s) => {
+      const label = `${s.etf} · ${s.account}`;
+      return `<option value="${s.id}">${label}</option>`;
+    }).join("");
+    select.dataset.ids = ids;
+    select.onchange = () => {
+      _historyState.current = select.value;
+      const strat = data.strategies.find((s) => s.id === select.value);
+      if (strat) {
+        renderHistorySub(strat, data.backfill_days);
+        renderHistoryStats(strat);
+        renderHistoryTable(strat);
+      }
+    };
+  }
+
+  // Default selection: first strategy, or whatever was previously selected
+  const wanted = _historyState.current && data.strategies.some((s) => s.id === _historyState.current)
+    ? _historyState.current
+    : data.strategies[0]?.id;
+  if (wanted) {
+    select.value = wanted;
+    _historyState.current = wanted;
+    const strat = data.strategies.find((s) => s.id === wanted);
+    renderHistorySub(strat, data.backfill_days);
+    renderHistoryStats(strat);
+    renderHistoryTable(strat);
+  }
+}
+
 // ─── Main render ──────────────────────────────────────────────────────────────
 
 function renderMeta(data) {
@@ -303,6 +405,7 @@ async function refresh() {
     data.strategies.forEach((s) => stratRoot.appendChild(renderCard(s, history)));
 
     renderSources(data.sources);
+    renderHistory(data);
   } catch (err) {
     console.error(err);
     renderError(err);

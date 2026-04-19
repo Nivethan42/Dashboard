@@ -44,6 +44,36 @@
       <div class="sources-grid" id="sources-grid"><!-- filled by JS --></div>
     </section>
 
+    <section class="history">
+      <div class="history-header">
+        <div>
+          <div class="section-label" style="margin-bottom:4px">TRADE HISTORY · PAST YEAR</div>
+          <div class="history-sub" id="history-sub">—</div>
+        </div>
+        <div class="history-controls">
+          <label for="history-select" class="history-label">Strategy</label>
+          <select id="history-select" class="history-select"></select>
+        </div>
+      </div>
+      <div class="history-stats" id="history-stats"><!-- filled by JS --></div>
+      <div class="history-scroll">
+        <table class="history-table" id="history-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Entry</th>
+              <th>Entry @</th>
+              <th>Exit</th>
+              <th>Exit @</th>
+              <th>Days</th>
+              <th class="align-right">Return</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody"><!-- filled by JS --></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="help">
       <div class="section-label">HOW THIS WORKS</div>
       <div class="help-grid">

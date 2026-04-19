@@ -475,6 +475,146 @@ h1 {
 .source-table th { color: var(--text-faint); font-weight: 400; text-align: left; }
 .source-table td { color: var(--text); font-weight: 500; text-align: right; }
 
+/* ─── HISTORY ────────────────────────────────────────────────── */
+.history {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.history-sub {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.history-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.history-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-sub) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'><path d='M1 1l4 4 4-4' stroke='%239aa3b2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 10px center;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 7px 28px 7px 12px;
+  border: 1px solid var(--border-s);
+  border-radius: 8px;
+  cursor: pointer;
+  min-width: 180px;
+}
+.history-select:focus {
+  outline: none;
+  border-color: var(--green);
+}
+
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 12px 0;
+  margin-bottom: 12px;
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+}
+.history-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.history-stat .k {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-faint);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.history-stat .v {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.history-stat .v.good { color: var(--green); }
+.history-stat .v.bad  { color: var(--red); }
+
+.history-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sub);
+}
+.history-scroll::-webkit-scrollbar { width: 8px; }
+.history-scroll::-webkit-scrollbar-track { background: transparent; }
+.history-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-s);
+  border-radius: 4px;
+}
+.history-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.history-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-sub);
+  z-index: 1;
+}
+.history-table thead th {
+  font-weight: 500;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.history-table thead th.align-right { text-align: right; }
+
+.history-table tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px dashed var(--border);
+  color: var(--text);
+}
+.history-table tbody tr:last-child td { border-bottom: none; }
+.history-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+.history-table td.num { text-align: right; }
+.history-table td.good { color: var(--green); font-weight: 600; }
+.history-table td.bad  { color: var(--red);   font-weight: 600; }
+.history-table td.dim  { color: var(--text-faint); }
+.history-table .open-row td { color: var(--blue); font-style: italic; }
+
+.history-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
 /* ─── HELP ───────────────────────────────────────────────────── */
 .help-grid {
   display: grid;
@@ -522,4 +662,11 @@ h1 {
   .card { padding: 16px; }
   .card-name { font-size: 1.3rem; }
   .streak { font-size: 1.65rem; }
+
+  .history { padding: 16px; }
+  .history-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .history-controls { width: 100%; justify-content: space-between; }
+  .history-select { flex: 1; min-width: 0; }
+  .history-scroll { max-height: 300px; }
+  .history-table thead th, .history-table tbody td { padding: 8px 10px; font-size: 0.7rem; }
 }
