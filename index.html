@@ -3,8 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="light dark" />
   <title>Leveraged ETF Strategy Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='50' font-size='52'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
@@ -21,9 +23,9 @@
       <div class="header-controls">
         <div class="meta" id="meta">
           <span class="meta-line" id="meta-generated">Loading…</span>
-          <span class="meta-line muted" id="meta-source">—</span>
+          <span class="meta-line muted" id="meta-source"></span>
         </div>
-        <button id="refresh-btn" class="btn primary" type="button" title="Reload latest data file">
+        <button id="refresh-btn" class="btn-refresh" type="button" title="Reload latest data">
           <span class="spinner" aria-hidden="true"></span>
           <span class="btn-label">Refresh</span>
         </button>
@@ -32,72 +34,41 @@
   </header>
 
   <main class="wrap main">
-    <section id="overview" class="overview">
-      <!-- filled by JS -->
-    </section>
 
-    <section id="strategies" class="strategies">
-      <!-- filled by JS -->
-    </section>
+    <div id="status-bar" class="status-bar"><!-- filled by JS --></div>
+
+    <section id="strategies" class="strategies"><!-- filled by JS --></section>
 
     <section class="sources">
-      <h2>Underlying indicator snapshot</h2>
+      <div class="section-label">INDICATOR SNAPSHOT</div>
       <div class="sources-grid" id="sources-grid"><!-- filled by JS --></div>
     </section>
 
     <section class="help">
-      <h2>How this works</h2>
+      <div class="section-label">HOW THIS WORKS</div>
       <div class="help-grid">
         <div class="help-card">
-          <h3>Data pipeline</h3>
-          <p>A GitHub Action pulls QQQ and SPY daily opens from Yahoo Finance at 9:30, 9:35, 9:40, and 9:45 ET every market day, computes the indicators, and commits <code>data/latest.json</code>.</p>
+          <div class="help-card-title">Data pipeline</div>
+          <p>A GitHub Action pulls QQQ and SPY daily opens from Yahoo Finance at 9:30, 9:35, 9:40, and 9:45 ET every market day, computes every indicator, and commits <code>data/latest.json</code>.</p>
         </div>
         <div class="help-card">
-          <h3>Manual refresh</h3>
-          <p>Press <strong>Refresh</strong> to reload the latest committed data. To force a fresh Yahoo pull, run the <em>Update dashboard data</em> workflow from the Actions tab in GitHub (<code>Run workflow</code>).</p>
+          <div class="help-card-title">Manual refresh</div>
+          <p>Press <strong>Refresh</strong> to reload the latest committed data without CDN caching. To force a fresh Yahoo Finance pull, run <em>Update dashboard data</em> from the GitHub Actions tab.</p>
         </div>
         <div class="help-card">
-          <h3>Reading the cards</h3>
-          <p>Each card shows whether today's open should trigger a buy. Green rows satisfy the rule; red rows don't. A card is <strong>BUY</strong> only when every required condition passes.</p>
+          <div class="help-card-title">Reading a card</div>
+          <p>Each row: dot (pass/fail) · rule with threshold · today's value coloured green or red. The ANY group needs at least one to fire; the ALL group needs every rule to hold. Both must be true for a BUY.</p>
         </div>
       </div>
     </section>
+
   </main>
 
   <footer class="site-footer">
     <div class="wrap">
-      <p>Signal source: Yahoo Finance via <code>yfinance</code>. Not investment advice — use your own judgement.</p>
+      <p>Signal source: Yahoo Finance via <code>yfinance</code>. Not investment advice.</p>
     </div>
   </footer>
-
-  <template id="strategy-card-template">
-    <article class="card strategy-card">
-      <header class="card-head">
-        <div class="tags">
-          <span class="tag tag-etf"></span>
-          <span class="tag tag-account"></span>
-          <span class="tag tag-source"></span>
-        </div>
-        <h3 class="card-title"></h3>
-        <p class="card-sub"></p>
-      </header>
-      <div class="signal-badge">
-        <span class="signal-label"></span>
-        <span class="signal-hint"></span>
-      </div>
-      <div class="conditions">
-        <div class="condition-group" data-group="trigger">
-          <h4>Entry triggers</h4>
-          <ul class="condition-list"></ul>
-        </div>
-        <div class="condition-group" data-group="filter">
-          <h4>Filters / risk gates</h4>
-          <ul class="condition-list"></ul>
-        </div>
-      </div>
-      <p class="card-notes"></p>
-    </article>
-  </template>
 
   <script src="assets/js/main.js" defer></script>
 </body>
